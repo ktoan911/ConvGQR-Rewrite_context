@@ -1,0 +1,11 @@
+python src/train_GQR.py \
+  --pretrained_query_encoder="google-t5/t5-base" \
+  --train_file_path="data/qrecc_train.json" \
+  --collate_fn_type="flat_concat_for_train" \
+  --per_gpu_train_batch_size=8 \
+  --num_train_epochs=15 \
+  --max_query_length=32 \
+  --max_doc_length=384 \
+  --max_response_length=32 \
+  --max_concat_length=512 \
+  --alpha=0.5
