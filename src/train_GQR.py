@@ -141,7 +141,7 @@ def train(args, log_writer):
                 labels=bt_oracle_query,
             )
             decode_loss = output.loss  # B * dim
-            conv_query_embs = output.encoder_last_hidden_state[:, 0]
+            # conv_query_embs = output.encoder_last_hidden_state[:, 0]
 
             # with torch.no_grad():
             #     # freeze passage encoder's parameters
