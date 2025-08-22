@@ -1,41 +1,78 @@
-import ast
+import google.generativeai as genai
 import streamlit as st
+
 from test_model_inference import ConversationalQueryRewriter
 
-st.title("Conversational Query Rewriter")
+# --- Cấu hình Gemini ---
+genai.configure(api_key="AIzaSyDTKjpeTjoPUKDrkkg0Xk1BbSfb60WOAmg")
+model = genai.GenerativeModel("gemini-1.5-flash")
+
 
 @st.cache_resource
 def load_model():
     return ConversationalQueryRewriter()
 
+
 rewriter = load_model()
+st.set_page_config(page_title="Chatbot Gemini", page_icon="🤖", layout="centered")
 
-list_input_str = st.text_area(
-    'Nhập list (ví dụ: ["a", "b", "c"])', value='["What is AI?", "AI is ...", "Tell me more"]'
-)
+st.title("🤖 Chatbot với Gemini")
 
-try:
-    list_input = ast.literal_eval(list_input_str)
-    if not isinstance(list_input, list):
-        st.error("Bạn phải nhập đúng định dạng list!")
-        list_input = []
-except Exception as e:
-    st.error(f"Lỗi khi parse list: {e}")
-    list_input = []
+# --- Khởi tạo session state cho history ---
+if "history" not in st.session_state:
+    st.session_state.history = []  # [(role, content), ...]
 
-string_input = st.text_input("Nhập 1 chuỗi", value="What are examples?")
+if "real" not in st.session_state:
+    st.session_state.real = []  # [(role, content), ...]
 
-if st.button("Chạy"):
-    if not list_input or not string_input.strip():
-        st.warning("Bạn cần nhập cả lịch sử và truy vấn hiện tại.")
+if "rewrite_query" not in st.session_state:
+    st.session_state.rewrite_query = ""
+
+
+# --- Hàm gọi Gemini ---
+def call_gemini(prompt):
+    response = model.generate_content(prompt)
+    return response.text
+
+
+# --- Hiển thị lịch sử chat ---
+for role, msg in st.session_state.history:
+    if role == "user":
+        st.chat_message("user").markdown(msg)
     else:
-        with st.spinner("🔄 Đang xử lý..."):
-            try:
-                res = rewriter.generate_summary_query(list_input, string_input)
-                if not res.strip():
-                    st.warning("⚠️ Kết quả rỗng.")
-                else:
-                    st.success("✅ Output:")
-                    st.code(res, language="text")
-            except Exception as e:
-                st.error(f"❌ Lỗi khi generate: {e}")
+        st.chat_message("assistant").markdown(msg)
+
+
+# --- Nhập câu hỏi mới ---
+user_input = st.chat_input("Nhập câu hỏi của bạn...")
+
+if user_input:
+    # Lưu vào history
+    st.session_state.history.append(("user", user_input))
+    st.session_state.real.append(
+        (
+            "user",
+            rewriter.generate_summary_query(
+                [c[1] for c in st.session_state.real], user_input
+            ),
+        )
+    )
+
+    # Gửi prompt đến Gemini
+    full_context = "\n".join([f"{r}: {m}" for r, m in st.session_state.real])
+    reply = call_gemini(full_context)
+
+    # Lưu câu trả lời
+    st.session_state.history.append(("assistant", reply))
+    st.session_state.real.append(("assistant", reply))
+
+    # Cập nhật lại màn hình
+    st.rerun()
+
+
+# --- Ô hiển thị câu query sau khi rewrite ---
+st.subheader("📝 Query sau khi Rewrite")
+if st.session_state.history:
+    st.session_state.rewrite_query = st.session_state.real[-2][1] if len(st.session_state.real) > 1 else ""
+
+st.text_area("Câu hỏi đã được rewrite:", st.session_state.rewrite_query, height=100)

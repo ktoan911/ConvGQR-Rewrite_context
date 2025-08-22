@@ -129,8 +129,6 @@ class T5RewriterIRDataset_qrecc(Dataset):
                 i += 1
             else:
                 labels = []
-                pos_docs = []
-                neg_docs = []
                 self.examples.append(
                     [
                         count,
