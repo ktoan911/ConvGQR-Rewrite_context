@@ -106,7 +106,13 @@ class T5RewriterIRDataset_qrecc(Dataset):
 
                 labels = target_encoding.input_ids
                 labels = torch.tensor(labels)
-                labels[labels == tokenizer.pad_token_id] = -100
+                # Xử lý pad token cho Mistral (sử dụng eos_token làm pad_token)
+                pad_token_id = (
+                    tokenizer.pad_token_id
+                    if tokenizer.pad_token_id is not None
+                    else tokenizer.eos_token_id
+                )
+                labels[labels == pad_token_id] = -100
                 labels = labels.tolist()
 
                 # pos_docs = []

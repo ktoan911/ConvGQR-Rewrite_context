@@ -17,8 +17,8 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from tqdm import tqdm, trange
 from transformers import (
-    T5ForConditionalGeneration,
-    T5Tokenizer,
+    AutoModelForCausalLM,
+    AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
 
@@ -60,8 +60,12 @@ def train(args, log_writer):
     # passage_tokenizer, passage_encoder = load_model("ANCE_Passage", args.pretrained_passage_encoder)
     # passage_encoder = passage_encoder.to(args.device)
 
-    query_tokenizer = T5Tokenizer.from_pretrained(args.pretrained_query_encoder)
-    query_encoder = T5ForConditionalGeneration.from_pretrained(
+    query_tokenizer = AutoTokenizer.from_pretrained(args.pretrained_query_encoder)
+    # Mistral không có pad_token mặc định, cần thêm
+    if query_tokenizer.pad_token is None:
+        query_tokenizer.pad_token = query_tokenizer.eos_token
+
+    query_encoder = AutoModelForCausalLM.from_pretrained(
         args.pretrained_query_encoder
     ).to(args.device)
 
@@ -123,22 +127,36 @@ def train(args, log_writer):
         query_encoder.train()
         # passage_encoder.eval()
         for batch in tqdm(train_loader, desc="Step", disable=args.disable_tqdm):
-            query_encoder.zero_grad()
+            # query_encoder.zero_grad()  # Di chuyển xuống dưới
 
             bt_conv_query = batch["bt_input_ids"].to(args.device)  # B * len
             bt_conv_query_mask = batch["bt_attention_mask"].to(args.device)
-            # bt_pos_docs = batch["bt_pos_docs"].to(args.device)  # B * len one pos
-            # bt_pos_docs_mask = batch["bt_pos_docs_mask"].to(args.device)
-            # bt_neg_docs = batch["bt_neg_docs"].to(
-            #     args.device
-            # )  # B * len batch size negs
-            # bt_neg_docs_mask = batch["bt_neg_docs_mask"].to(args.device)
             bt_oracle_query = batch["bt_labels"].to(args.device)
 
+            # Với Causal LM, cần concat input và target
+            # Tạo input_ids bằng cách concat input và target
+            combined_input_ids = torch.cat([bt_conv_query, bt_oracle_query], dim=1)
+            combined_attention_mask = torch.cat(
+                [
+                    bt_conv_query_mask,
+                    torch.ones_like(bt_oracle_query, dtype=torch.long),
+                ],
+                dim=1,
+            )
+
+            # Labels cho causal LM: ignore input tokens, chỉ tính loss trên target
+            labels = torch.cat(
+                [
+                    torch.full_like(bt_conv_query, -100),  # ignore input tokens
+                    bt_oracle_query,  # compute loss on target tokens
+                ],
+                dim=1,
+            )
+
             output = query_encoder(
-                input_ids=bt_conv_query,
-                attention_mask=bt_conv_query_mask,
-                labels=bt_oracle_query,
+                input_ids=combined_input_ids,
+                attention_mask=combined_attention_mask,
+                labels=labels,
             )
             decode_loss = output.loss  # B * dim
             # conv_query_embs = output.encoder_last_hidden_state[:, 0]
@@ -151,13 +169,19 @@ def train(args, log_writer):
             # #ranking_loss = cal_ranking_loss(conv_query_embs, pos_doc_embs, neg_doc_embs)
             # ranking_loss = cal_kd_loss(conv_query_embs, pos_doc_embs)
             # loss = decode_loss + args.alpha * ranking_loss
-            loss = decode_loss
+            loss = (
+                decode_loss / args.gradient_accumulation_steps
+            )  # Scale loss cho gradient accumulation
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                query_encoder.parameters(), args.max_grad_norm
-            )
-            optimizer.step()
-            scheduler.step()
+
+            # Chỉ update weights sau khi accumulate đủ gradients
+            if (global_step + 1) % args.gradient_accumulation_steps == 0:
+                torch.nn.utils.clip_grad_norm_(
+                    query_encoder.parameters(), args.max_grad_norm
+                )
+                optimizer.step()
+                scheduler.step()
+                query_encoder.zero_grad()
 
             if args.print_steps > 0 and global_step % args.print_steps == 0:
                 logger.info(
@@ -202,7 +226,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--pretrained_query_encoder", type=str, default="checkpoints/T5-base"
+        "--pretrained_query_encoder",
+        type=str,
+        default="mistralai/Mistral-7B-Instruct-v0.3",
     )
     parser.add_argument(
         "--pretrained_passage_encoder",
@@ -223,7 +249,12 @@ def get_args():
     parser.add_argument("--decode_type", type=str, default="oracle")
     parser.add_argument("--use_prefix", type=bool, default=True)
 
-    parser.add_argument("--per_gpu_train_batch_size", type=int, default=8)
+    parser.add_argument(
+        "--per_gpu_train_batch_size", type=int, default=2
+    )  # Giảm từ 8 xuống 2 cho Mistral-7B
+    parser.add_argument(
+        "--gradient_accumulation_steps", type=int, default=4
+    )  # Để có effective batch size = 2*4 = 8
     parser.add_argument("--use_data_percent", type=float, default=1)
 
     parser.add_argument(
@@ -250,7 +281,9 @@ def get_args():
     parser.add_argument("--disable_tqdm", type=bool, default=True)
 
     parser.add_argument("--print_steps", type=float, default=0.5)
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument(
+        "--learning_rate", type=float, default=5e-6
+    )  # Giảm learning rate cho model lớn
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--num_warmup_portion", type=float, default=0.0)

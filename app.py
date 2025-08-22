@@ -1,10 +1,10 @@
 import google.generativeai as genai
 import streamlit as st
 
-from test_model_inference import ConversationalQueryRewriter
+from rewrite import ConversationalQueryRewriter
 
 # --- Cấu hình Gemini ---
-genai.configure(api_key="AIzaSyDTKjpeTjoPUKDrkkg0Xk1BbSfb60WOAmg")
+genai.configure(api_key="AIzaSyBxOpnnneXjKtc4nF0LBFFGkyxY8OGS7Oo")
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 
@@ -52,8 +52,8 @@ if user_input:
     st.session_state.real.append(
         (
             "user",
-            rewriter.generate_summary_query(
-                [c[1] for c in st.session_state.real], user_input
+            rewriter.rewrite(
+                [c[1] for c in st.session_state.real], user_input, use_api=True
             ),
         )
     )
@@ -74,5 +74,4 @@ if user_input:
 st.subheader("📝 Query sau khi Rewrite")
 if st.session_state.history:
     st.session_state.rewrite_query = st.session_state.real[-2][1] if len(st.session_state.real) > 1 else ""
-
 st.text_area("Câu hỏi đã được rewrite:", st.session_state.rewrite_query, height=100)

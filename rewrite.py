@@ -2,6 +2,7 @@ import logging
 import sys
 from typing import Dict, List
 
+import google.generativeai as genai
 import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 
@@ -13,6 +14,58 @@ logger = logging.getLogger(__name__)
 
 sys.path.append(".")
 sys.path.append("..")
+
+
+def build_rewrite_prompt(history, query):
+    """
+    history: list dạng [q1, a1, q2, a2, ...]
+    query: str - câu hỏi cuối cùng của user
+    return: str - prompt đầy đủ
+    """
+
+    # Chuyển history thành chuỗi có format rõ ràng
+    history_temp = history[-20:]
+    history_str = ""
+    for i, turn in enumerate(history_temp):
+        if i % 2 == 0:  # user query
+            history_str += f"User: {turn}\n"
+        else:  # assistant answer
+            history_str += f"Assistant: {turn}\n"
+
+    # Prompt dạng one-shot
+    prompt = f"""You are a helpful assistant that rewrites user queries into self-contained queries.  
+            You must consider the full conversation history and rewrite the last user question so that it is understandable without the previous context.  
+            Preserve the original meaning, and keep the rewritten query concise and natural.  
+            If the query does not need to be changed, return the query verbatim, and absolutely do not return any other messages.
+            ### Example
+
+            Conversation history:
+            User: What is the capital of France?
+            Assistant: The capital of France is Paris.
+            User: And what about Germany?
+
+            Rewrite the last user query:  
+            What is the capital of Germany?
+
+            ---
+
+            Conversation history:
+            User: What is the capital of France?
+            Assistant: The capital of France is Paris.
+            User: And what is the capital of Germany?
+
+            Rewrite the last user query:  
+            What is the capital of Germany?
+
+            ---
+            Now do the same for the following conversation.
+
+            Conversation history:
+            {history_str}User: {query}
+
+            Rewrite the last user query:"""
+
+    return prompt
 
 
 class ConversationalQueryRewriter:
@@ -28,6 +81,8 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
+        genai.configure(api_key="AIzaSyDTKjpeTjoPUKDrkkg0Xk1BbSfb60WOAmg")
+        self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def _load_model(self):
         try:
@@ -112,6 +167,19 @@ class ConversationalQueryRewriter:
                 self.device
             ),
         }
+
+    def call_gemini(self, prompt):
+        response = self.model.generate_content(prompt)
+        return response.text
+
+    def rewrite(
+        self, conversation_history: List[str], current_query: str, use_api: bool
+    ):
+        if use_api:
+            prompt = build_rewrite_prompt(conversation_history, current_query)
+            return self.call_gemini(prompt)
+        else:
+            return self.generate_summary_query(conversation_history, current_query)
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str
