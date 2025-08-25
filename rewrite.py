@@ -64,23 +64,22 @@ def build_rewrite_prompt(history, query):
             3. QD: "Who won the NBA finals in 2021?"
             4. RE: "The MVP was LeBron James, a star player for the Lakers."
             5. PR: "The Milwaukee Bucks won in 2021."
-            6. Final query: "query": "NBA finals 2021 winner"
+            6. Final query: {{{"query": "NBA finals 2021 winner"}}}
 
             ---
 
             ### Your Turn
 
             Conversation history:
-            {{history_str}}
+            {history_str}
 
             New user question:
-            {{query}}
+            {query}
 
             Reasoning:
         """
 
-    # Bây giờ, prompt sẽ sử dụng đúng giá trị history_str đã tính ở trên
-    # và giá trị query được truyền vào hàm.
+
     prompt = template.format(history_str=history_str, query=query)
 
     return prompt
@@ -195,6 +194,7 @@ class ConversationalQueryRewriter:
     ):
         if use_api:
             prompt = build_rewrite_prompt(conversation_history, current_query)
+            print('aaaaaabbb', prompt)
             return self.call_gemini(prompt)
         else:
             return self.generate_summary_query(conversation_history, current_query)
