@@ -27,8 +27,6 @@ def build_rewrite_prompt(history, query):
             history_str += f"Assistant: {turn}\n"
 
     # Prompt dạng one-shot
-    # 1. Định nghĩa chuỗi template mà không có chữ 'f' ở đầu
-    #    Các dấu ngoặc nhọn cho JSON giờ đây chỉ là văn bản thuần túy.
     template = """
             You are a conversational query rewriting assistant.
 
@@ -81,11 +79,10 @@ def build_rewrite_prompt(history, query):
             Reasoning:
         """
 
-    # 2. Sử dụng phương thức .format() để điền các biến vào
-    #    Giả sử bạn có biến history_str và query
-    history_str = "..."  # Dữ liệu của bạn
-    query = "..."  # Dữ liệu của bạn
+    # Bây giờ, prompt sẽ sử dụng đúng giá trị history_str đã tính ở trên
+    # và giá trị query được truyền vào hàm.
     prompt = template.format(history_str=history_str, query=query)
+
     return prompt
 
 
