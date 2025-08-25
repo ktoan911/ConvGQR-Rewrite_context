@@ -47,7 +47,7 @@ def build_rewrite_prompt(history, query):
         3. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction.
         4. Response Expansion: Give a one-sentence response to the new question.
         5. Pseudo Response: After the above steps you have a series of question-and-answer pairs as context along with a new question, your task is to generate a set of search queries based on the relevancy between the new question and the relevant passage and also rely on the given context. The output format should be in a list with indexes e.g., 1. 2. 3.
-        6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. The output should be placed in a JSON dictionary as follows: {{"query": ""}}
+        6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. The output should be placed in a JSON dictionary as follows: "query": ""
 
         Think step by step, but only show the final JSON at the end.
 
@@ -70,7 +70,7 @@ def build_rewrite_prompt(history, query):
         3. QD: "Who won the NBA finals in 2021?"
         4. RE: "The MVP was LeBron James, a star player for the Lakers."
         5. PR: "The Milwaukee Bucks won in 2021."
-        6. Final query: {{"query": "NBA finals 2021 winner"}}
+        6. Final query: "query": "NBA finals 2021 winner"
 
         ---
 
