@@ -64,7 +64,7 @@ def build_rewrite_prompt(history, query):
             3. QD: "Who won the NBA finals in 2021?"
             4. RE: "The MVP was LeBron James, a star player for the Lakers."
             5. PR: "The Milwaukee Bucks won in 2021."
-            6. Final query: {{{"query": "NBA finals 2021 winner"}}}
+            6. Final query: "query": "NBA finals 2021 winner"
 
             ---
 
