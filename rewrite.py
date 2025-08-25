@@ -71,10 +71,10 @@ def build_rewrite_prompt(history, query):
             ### Your Turn
 
             Conversation history:
-            {history_str}
+            {{history_str}}
 
             New user question:
-            {query}
+            {{query}}
 
             Reasoning:
         """
