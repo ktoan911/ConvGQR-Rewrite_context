@@ -3,7 +3,6 @@ import streamlit as st
 
 from rewrite import ConversationalQueryRewriter
 
-# --- Cấu hình Gemini ---
 genai.configure(api_key="AIzaSyBxOpnnneXjKtc4nF0LBFFGkyxY8OGS7Oo")
 model = genai.GenerativeModel("gemini-1.5-flash")
 
