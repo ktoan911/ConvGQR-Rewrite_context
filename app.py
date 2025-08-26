@@ -30,7 +30,7 @@ if "rewrite_query" not in st.session_state:
 
 # --- Hàm gọi Gemini ---
 def call_gemini(history):
-    context = "\n".join([f"{r}: {m}" for r, m in history])
+    context = "\n".join([f"{r}: {m}" for r, m in history[-20:]])
     response = model.generate_content(context)
     return response.text
 
@@ -76,5 +76,5 @@ st.text_area(
     "Câu hỏi đã được rewrite:",
     st.session_state.rewrite_query,
     height=100,
-    disabled=True,   # 🔒 chỉ đọc
+    disabled=True,  # 🔒 chỉ đọc
 )
