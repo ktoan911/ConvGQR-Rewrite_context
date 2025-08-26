@@ -29,8 +29,9 @@ if "rewrite_query" not in st.session_state:
 
 
 # --- Hàm gọi Gemini ---
-def call_gemini(prompt):
-    response = model.generate_content(prompt)
+def call_gemini(history):
+    context = "\n".join([f"{r}: {m}" for r, m in history])
+    response = model.generate_content(context)
     return response.text
 
 
@@ -46,20 +47,16 @@ for role, msg in st.session_state.history:
 user_input = st.chat_input("Nhập câu hỏi của bạn...")
 
 if user_input:
-    # Lưu vào history
+    # Lưu câu gốc vào history
     st.session_state.history.append(("user", user_input))
-    st.session_state.real.append(
-        (
-            "user",
-            rewriter.rewrite(
-                [c[1] for c in st.session_state.real], user_input, use_api=True
-            ),
-        )
-    )
 
-    # Gửi prompt đến Gemini
-    full_context = "\n".join([f"{r}: {m}" for r, m in st.session_state.real])
-    reply = call_gemini(full_context)
+    # Rewrite câu hỏi và lưu vào "real"
+    rewritten = rewriter.rewrite(
+        [c[1] for c in st.session_state.real], user_input, use_api=True
+    )
+    st.session_state.real.append(("user", rewritten))
+
+    reply = call_gemini(st.session_state.history)
 
     # Lưu câu trả lời
     st.session_state.history.append(("assistant", reply))
@@ -69,8 +66,15 @@ if user_input:
     st.rerun()
 
 
-# --- Ô hiển thị câu query sau khi rewrite ---
+# --- Ô hiển thị query sau khi rewrite ---
 st.subheader("📝 Query sau khi Rewrite")
-if st.session_state.history:
-    st.session_state.rewrite_query = st.session_state.real[-2][1] if len(st.session_state.real) > 1 else ""
-st.text_area("Câu hỏi đã được rewrite:", st.session_state.rewrite_query, height=100)
+if len(st.session_state.real) > 1:
+    st.session_state.rewrite_query = st.session_state.real[-2][1]  # câu user đã rewrite
+
+# Chỉ hiển thị, không cho chỉnh sửa
+st.text_area(
+    "Câu hỏi đã được rewrite:",
+    st.session_state.rewrite_query,
+    height=100,
+    disabled=True,   # 🔒 chỉ đọc
+)
