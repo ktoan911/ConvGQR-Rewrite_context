@@ -228,12 +228,12 @@ def get_args():
     parser.add_argument(
         "--pretrained_query_encoder",
         type=str,
-        default="mistralai/Mistral-7B-Instruct-v0.3",
+        default="Open-Orca/Mistral-7B-OpenOrca",
     )
     parser.add_argument(
         "--pretrained_passage_encoder",
         type=str,
-        default="checkpoints/ad-hoc-ance-msmarco",
+        default="checkpoints",
     )
 
     parser.add_argument(

@@ -44,7 +44,7 @@ def build_rewrite_prompt(history, query):
             You are a conversational query rewriting assistant.
 
             Given:
-            - Conversation history (Q/A pairs).
+            - Conversation history (Question/Answer pairs).
             - A new user question.
 
             Follow the steps **in order**:
@@ -71,11 +71,11 @@ def build_rewrite_prompt(history, query):
             User: Who won in 2021?
 
             Reasoning:
-            1. TS: old_topic.
-            2. HS: (Q1/A1) -> Lakers won in 2020. (Q2/A2) -> MVP was LeBron James.
-            3. QD: "Who won the NBA finals in 2021?"
-            4. RE: "The MVP was LeBron James, a star player for the Lakers."
-            5. PR: "The Milwaukee Bucks won in 2021."
+            1. Topic Switch: old_topic.
+            2. HS: (Question 1/Answer 1) -> Lakers won in 2020. (Question 2/Answer 2) -> MVP was LeBron James.
+            3. Question Disambiguation: "Who won the NBA finals in 2021?"
+            4. Response Expansion: "The MVP was LeBron James, a star player for the Lakers."
+            5. Pseudo Response: "The Milwaukee Bucks won in 2021."
             6. Final query: {{"query": "NBA finals 2021 winner"}}
 
             ### Your Turn
@@ -107,7 +107,7 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        genai.configure(api_key="AIzaSyDTKjpeTjoPUKDrkkg0Xk1BbSfb60WOAmg")
+        genai.configure(api_key="AIzaSyDf4MjQJycKpxTXUtJRXr4TlJWrYmwNQAM")
         self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def _load_model(self):
@@ -237,29 +237,3 @@ class ConversationalQueryRewriter:
         except Exception as e:
             logger.error(f"Lỗi khi generate summary query: {e}")
             return current_query
-
-
-# t = [
-#     "What are the main breeds of goat?",
-#     "Abaza...Zhongwei",
-#     "Tell me about boer goats",
-#     "The Boer goat is a breed of goat that was developed in South Africa in the early 1900s for meat production. Their name is derived from the Afrikaans (Dutch) word boer, meaning farmer.",
-#     "What breed of goats is good for meat",
-#     "Before Boer goats became available in the United States in the late 1980s, Spanish goats were the standard meat goat breed, especially in the South. These goats are descendants of the goats brought by Spanish explorers, making their way to the United States via Mexico.",
-# ]
-# rewriter = ConversationalQueryRewriter()
-
-# t1 = "Are angora goats good for it?"
-# res = rewriter.generate_summary_query(t, t1)
-# print(res)
-# model = SentenceTransformer("all-MiniLM-L6-v2")
-
-
-# def semantic_similarity(sentence1: str, sentence2: str) -> float:
-
-#     emb1 = model.encode(sentence1, convert_to_tensor=True)
-#     emb2 = model.encode(sentence2, convert_to_tensor=True)
-
-#     similarity = util.cos_sim(emb1, emb2)
-
-#     return similarity.item()
