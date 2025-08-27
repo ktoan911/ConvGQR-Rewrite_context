@@ -49,14 +49,14 @@ def build_rewrite_prompt(history, query):
 
             Follow the steps **in order**:
 
-            1. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
-            2. If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
-            3. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction.
-            4. Response Expansion: Give a one-sentence response to the new question.
-            5. Pseudo Response: After the above steps you have a series of question-and-answer pairs as context along with a new question, your task is to generate a set of search queries based on the relevancy between the new question and the relevant passage and also rely on the given context. The output format should be in a list with indexes e.g., 1. 2. 3.
-            6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. The output should be placed in a JSON dictionary as follows: {{"query": ""}}
+            1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction. Note: Replace all possessive adjectives (my, his, her, their, ...) with proper names of the objects.
+            2. Response Expansion: Give a one-sentence response to the new question.
+            3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
+            4. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
+            5. History Summary: If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
+            6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
-            Think step by step, but only show the final JSON at the end.
+            The output of the current step is the input of the next step. Think step by step, but only show the final JSON at the end.
 
 
             ### One-shot Example
@@ -71,11 +71,11 @@ def build_rewrite_prompt(history, query):
             User: Who won in 2021?
 
             Reasoning:
-            1. Topic Switch: old_topic.
-            2. HS: (Question 1/Answer 1) -> Lakers won in 2020. (Question 2/Answer 2) -> MVP was LeBron James.
-            3. Question Disambiguation: "Who won the NBA finals in 2021?"
-            4. Response Expansion: "The MVP was LeBron James, a star player for the Lakers."
-            5. Pseudo Response: "The Milwaukee Bucks won in 2021."
+            1. Question Disambiguation: "Who won the NBA finals in 2021?"
+            2. Response Expansion: "The MVP was Giannis Antetokounmpo, a star player for the Milwaukee Bucks."
+            3. Pseudo Response: "The Milwaukee Bucks won in 2021."
+            4. Topic Switch: old_topic.
+            5. History Summary: (Question 1/Answer 1) -> Lakers won in 2020. (Question 2/Answer 2) -> MVP was LeBron James IN 2020.
             6. Final query: {{"query": "NBA finals 2021 winner"}}
 
             ### Your Turn
@@ -94,6 +94,31 @@ def build_rewrite_prompt(history, query):
     return prompt
 
 
+def correct_query(query):
+    return f"""
+You are a query rewriting assistant.  
+Your task is to rewrite the given user query for correct grammar, same language and no spelling mistakes
+ The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
+
+### Examples
+
+User query: "eather tomorrow"
+Rewritten query: {{"query": "weather tomorrow"}}
+
+User query: "capita of France"
+Rewritten query: {{"query": "Capital of France"}}
+
+User query: "knowledge về python"
+Rewritten query: {{"query": "knowledge about Python"}}
+
+### Instruction
+Now, rewrite the following query into a semantically complete sentence for retrieval:
+
+User query: "{query}"
+Rewritten query:
+"""
+
+
 class ConversationalQueryRewriter:
     def __init__(self, model_path: str = "ktoan911/ConvGQR", device: str = None):
         self.model_path = model_path
@@ -107,7 +132,7 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        genai.configure(api_key="AIzaSyDf4MjQJycKpxTXUtJRXr4TlJWrYmwNQAM")
+        genai.configure(api_key="AIzaSyCAXU728lhKYW83WGDqsDb6FhZnGSH4zLA")
         self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def _load_model(self):
@@ -202,18 +227,19 @@ class ConversationalQueryRewriter:
         self, conversation_history: List[str], current_query: str, use_api: bool
     ):
         if len(conversation_history) < 2:
-            return current_query
+            p_llm = self.call_gemini(correct_query(current_query))
 
-        if use_api:
+        elif use_api:
             prompt = build_rewrite_prompt(conversation_history, current_query)
             p_llm = self.call_gemini(prompt)
 
-            res = to_dict_query(p_llm)
-            if res is None:
-                return current_query
-            return res["query"]
         else:
             return self.generate_summary_query(conversation_history, current_query)
+
+        res = to_dict_query(p_llm)
+        if res is None:
+            return current_query
+        return res["query"]
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str

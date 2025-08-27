@@ -3,7 +3,7 @@ import streamlit as st
 
 from rewrite import ConversationalQueryRewriter
 
-genai.configure(api_key="AIzaSyDdUXHA8wxdyEZe0O4QJ-G15jRDucPzWCw")
+genai.configure(api_key="AIzaSyBoPJpY144DMfAb2JVCRnFfBWC3dgmiJK0")
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 
