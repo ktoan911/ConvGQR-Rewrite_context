@@ -49,6 +49,7 @@ def build_rewrite_prompt(history, query):
 
             Follow the steps **in order**:
 
+
             1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction. Note: Replace all possessive adjectives (my, his, her, their, ...) with proper names of the objects.
             2. Response Expansion: Give a one-sentence response to the new question.
             3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
@@ -237,9 +238,9 @@ class ConversationalQueryRewriter:
             return self.generate_summary_query(conversation_history, current_query)
 
         res = to_dict_query(p_llm)
-        if res is None:
+        if p_llm is None:
             return current_query
-        return res["query"]
+        return p_llm
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str
