@@ -132,7 +132,7 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        genai.configure(api_key="AIzaSyCAXU728lhKYW83WGDqsDb6FhZnGSH4zLA")
+        genai.configure(api_key="AIzaSyAauyf2vvvox9zjuCrD8_R29_vx3xRXBx4")
         self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def _load_model(self):
