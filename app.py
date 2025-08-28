@@ -3,7 +3,7 @@ import streamlit as st
 
 from rewrite import ConversationalQueryRewriter
 
-genai.configure(api_key="AIzaSyDf4MjQJycKpxTXUtJRXr4TlJWrYmwNQAM")
+genai.configure(api_key="AIzaSyAgUHUDK6Z4T2Jptjupak0A6b--xviK2Yw")
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 
@@ -66,5 +66,5 @@ st.text_area(
     "Câu hỏi đã được rewrite:",
     st.session_state.rewrite_query,
     height=100,
-    disabled=True,  
+    disabled=True,
 )

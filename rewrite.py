@@ -50,12 +50,12 @@ def build_rewrite_prompt(history, query):
             Follow the steps **in order**:
 
 
-            1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction. Note: Replace all possessive adjectives (my, his, her, their, ...) with proper names of the objects.
+            1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction. YOU MUST REPLACE ALL POSSESSIVE ADJECTIVES (my, his, her, their, ...) WITH PROPER NAMES OF THE OBJECTS, MUST NOT DELETE ANY POSSESSIVE ADJECTIVES.
             2. Response Expansion: Give a one-sentence response to the new question.
             3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
             4. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
             5. History Summary: If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
-            6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
+            6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. You MUST keep all proper names in the query. Greetings or polite inquiries SHOULD NOT be edited. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
             The output of the current step is the input of the next step. Think step by step, but only show the final JSON at the end.
 
@@ -133,7 +133,7 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        genai.configure(api_key="AIzaSyAauyf2vvvox9zjuCrD8_R29_vx3xRXBx4")
+        genai.configure(api_key="AIzaSyAbw-LBcmreYcJ-1OEvxhdAyBaEt4kg4KY")
         self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def _load_model(self):
