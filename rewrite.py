@@ -238,9 +238,9 @@ class ConversationalQueryRewriter:
             return self.generate_summary_query(conversation_history, current_query)
 
         res = to_dict_query(p_llm)
-        if p_llm is None:
+        if res is None:
             return current_query
-        return p_llm
+        return res
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str
