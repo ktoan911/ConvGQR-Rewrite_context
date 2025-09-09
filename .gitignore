@@ -1,3 +1,6 @@
 *.json
 venv
 __pycache__
+test 
+chroma_data
+test.py

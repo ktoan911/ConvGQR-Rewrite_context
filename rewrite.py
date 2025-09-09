@@ -2,9 +2,10 @@ import logging
 import sys
 from typing import Dict, List
 
-import google.generativeai as genai
 import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer
+
+from utils import create_gemini_client
 
 # Thiết lập logging
 logging.basicConfig(
@@ -25,7 +26,7 @@ def to_dict_query(long_string):
         dict_string = match.group(0)
         try:
             result_dict = json.loads(dict_string)
-            return result_dict
+            return result_dict["query"]
         except Exception:
             return None
 
@@ -49,13 +50,17 @@ def build_rewrite_prompt(history, query):
 
             Follow the steps **in order**:
 
-
-            1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction. YOU MUST REPLACE ALL POSSESSIVE ADJECTIVES (my, his, her, their, ...) WITH PROPER NAMES OF THE OBJECTS, MUST NOT DELETE ANY POSSESSIVE ADJECTIVES.
+            0. Coreference & Entity Linking: Resolve all anaphora/ellipsis before rewriting.
+            - Replace pronouns (it, this, they, those, etc.) with the most recent explicit noun phrase or named entity from the conversation context.
+            - Replace possessive adjectives (my, your, his, her, their, our, its) by inserting the **explicit object phrase** they refer to (e.g., "their smell" -> "smell of Vietnamese food") — DO NOT invent person names or remove possessives.
+            - If it's too difficult to determine, just focus on the user's previous 2 user chat sentences to see what it is.
+            1. Question Disambiguation: Rewrite the new question so that it is fully clear and self-contained. Write the new question without any introduction.
             2. Response Expansion: Give a one-sentence response to the new question.
             3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
             4. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
             5. History Summary: If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
-            6. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. You MUST keep all proper names in the query. Greetings or polite inquiries SHOULD NOT be edited. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
+            6. Raw Question Repetition: Repeat the original question to avoid forgetting information.
+            7. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. You MUST keep all proper names in the query. Greetings or polite inquiries SHOULD NOT be edited. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
             The output of the current step is the input of the next step. Think step by step, but only show the final JSON at the end.
 
@@ -72,12 +77,14 @@ def build_rewrite_prompt(history, query):
             User: Who won in 2021?
 
             Reasoning:
+            0. Coreference & Entity Linking: "Who won in 2021?"
             1. Question Disambiguation: "Who won the NBA finals in 2021?"
             2. Response Expansion: "The MVP was Giannis Antetokounmpo, a star player for the Milwaukee Bucks."
             3. Pseudo Response: "The Milwaukee Bucks won in 2021."
             4. Topic Switch: old_topic.
             5. History Summary: (Question 1/Answer 1) -> Lakers won in 2020. (Question 2/Answer 2) -> MVP was LeBron James IN 2020.
-            6. Final query: {{"query": "NBA finals 2021 winner"}}
+            6. Raw Question Repetition: "Who won in 2021?"
+            7. Final query: {{"query": "NBA finals 2021 winner"}}
 
             ### Your Turn
 
@@ -98,7 +105,7 @@ def build_rewrite_prompt(history, query):
 def correct_query(query):
     return f"""
 You are a query rewriting assistant.  
-Your task is to rewrite the given user query for correct grammar, same language and no spelling mistakes
+Your task is to rewrite the given user query for correct grammar, same language and no spelling mistakes. If there are acronyms and you can understand their meaning in the context of the current chat user, please add them in full form.
  The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
 ### Examples
@@ -109,8 +116,8 @@ Rewritten query: {{"query": "weather tomorrow"}}
 User query: "capita of France"
 Rewritten query: {{"query": "Capital of France"}}
 
-User query: "knowledge về python"
-Rewritten query: {{"query": "knowledge about Python"}}
+User query: "GDP meaning in domain business development"
+Rewritten query: {{"query": "GDP (Gross Domestic Product) meaning in domain business development"}}
 
 ### Instruction
 Now, rewrite the following query into a semantically complete sentence for retrieval:
@@ -133,8 +140,7 @@ class ConversationalQueryRewriter:
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        genai.configure(api_key="AIzaSyDMkpnDrAP9Oe5Q1F-7wt2lxBOOZaGArPQ")
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = create_gemini_client("gemini-1.5-flash")
 
     def _load_model(self):
         try:
@@ -221,8 +227,8 @@ class ConversationalQueryRewriter:
         }
 
     def call_gemini(self, prompt):
-        response = self.model.generate_content(prompt)
-        return response.text
+        response = self.model(prompt)
+        return response
 
     def rewrite(
         self, conversation_history: List[str], current_query: str, use_api: bool
@@ -232,6 +238,7 @@ class ConversationalQueryRewriter:
 
         elif use_api:
             prompt = build_rewrite_prompt(conversation_history, current_query)
+
             p_llm = self.call_gemini(prompt)
 
         else:

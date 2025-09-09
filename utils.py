@@ -8,8 +8,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import IterableDataset
 from torch.optim import AdamW
+from torch.utils.data import IterableDataset
 
 sys.path += ["../"]
 # import pandas as pd
@@ -18,6 +18,44 @@ import torch.distributed as dist
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 import shutil
+import time
+
+import google.generativeai as genai
+
+
+def create_gemini_client(model_name="gemini-1.5-flash"):
+    api_keys = [
+        "AIzaSyD2E5MCU-sm9IPetLoGYXwEdxsJ1O2oCY0",
+        "AIzaSyBqiYdV3DJYCsYaZxqk3mbaajKtUfi5i3s",
+        "AIzaSyA6mqtDrwVdJePrXqFOtj8ra-VIHQeXLP0",
+        "AIzaSyDf4MjQJycKpxTXUtJRXr4TlJWrYmwNQAM",
+        "AIzaSyDdelI3OG34xUPyROt0Q4KWvNl7LyKMtrI",
+    ]
+    current_idx = 0
+    max_retry = len(api_keys)
+
+    # Cấu hình lần đầu
+    genai.configure(api_key=api_keys[current_idx])
+    model = genai.GenerativeModel(model_name)
+
+    def generate(prompt: str):
+        nonlocal current_idx, model
+        retry_count = 0
+
+        while retry_count < max_retry:
+            try:
+                response = model.generate_content(prompt)
+                return response.text  # Trả về text
+            except Exception:
+                current_idx = (current_idx + 1) % len(api_keys)
+                genai.configure(api_key=api_keys[current_idx])
+                model = genai.GenerativeModel(model_name)
+                retry_count += 1
+                if retry_count >= max_retry:
+                    retry_count = 0
+                time.sleep(1)  # nghỉ tránh spam
+
+    return generate
 
 
 def check_dir_exist_or_build(dir_list, erase_dir_content=None):

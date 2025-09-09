@@ -1,10 +1,9 @@
-import google.generativeai as genai
 import streamlit as st
 
 from rewrite import ConversationalQueryRewriter
+from utils import create_gemini_client
 
-genai.configure(api_key="AIzaSyDTa2Xvrt8VVNsMaEI73S0Trs287FMZ70E")
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = create_gemini_client("gemini-1.5-flash")
 
 
 @st.cache_resource
@@ -29,8 +28,8 @@ if "rewrite_query" not in st.session_state:
 
 def call_gemini(history):
     context = "\n".join([f"{r}: {m}" for r, m in history[-20:]])
-    response = model.generate_content(context)
-    return response.text
+    response = model(context)
+    return response
 
 
 for role, msg in st.session_state.history:

@@ -1,13 +1,31 @@
-import json
-import re
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
+model_name = "Qwen/Qwen2.5-7B-Instruct"
 
-def to_dict_query(long_string):
-    match = re.search(r'\{"query":\s*".*?"\}', long_string)
-    if match:
-        dict_string = match.group(0)
-        try:
-            result_dict = json.loads(dict_string)
-            return result_dict
-        except Exception:
-            return None
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype="auto",
+    device_map="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+prompt = "Give me a short introduction to large language model."
+messages = [
+    {"role": "user", "content": prompt}
+]
+text = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True
+)
+model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+
+generated_ids = model.generate(
+    **model_inputs,
+    max_new_tokens=512
+)
+generated_ids = [
+    output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+]
+
+response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
