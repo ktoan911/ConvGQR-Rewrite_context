@@ -1,3 +1,4 @@
+import re
 import time
 
 import torch
@@ -5,7 +6,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model_name = "BeastyZ/Llama3.2-3B-ConvSearch-R1-TopiOCQA"
 
-# Load tokenizer và model 1 lần
+
+def get_rewrite_text(text):
+    matches = re.findall(r"<rewrite>(.*?)</rewrite>", text, flags=re.DOTALL)
+    if matches:
+        return matches[-1].strip()
+    return text
 
 
 class Rewrite:
@@ -52,7 +58,9 @@ class Rewrite:
         )
 
         print(f"end {time.time() - start:.2f} s")
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return get_rewrite_text(
+            self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        )
 
     def rewrite_queries(self, histories, queries):
         history_chat_strs = []
@@ -93,4 +101,4 @@ class Rewrite:
         )
         results = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-        return results
+        return [get_rewrite_text(res) for res in results]
