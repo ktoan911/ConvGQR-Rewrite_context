@@ -3,9 +3,12 @@ import sys
 from typing import Dict, List
 
 import torch
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-
-from utils import create_gemini_client
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    T5ForConditionalGeneration,
+    T5Tokenizer,
+)
 
 # Thiết lập logging
 logging.basicConfig(
@@ -58,7 +61,7 @@ def build_rewrite_prompt(history, query):
             2. Response Expansion: Give a one-sentence response to the new question.
             3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
             4. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
-            5. History Summary: If "old_topic", write a paragraph that summarizes only the information in the context that is DIRECTLY RELEVANT to the new user question. Discard irrelevant topics, even if they were discussed recently. For example, if the user asks about sales data, only summarize the context about sales, and ignore context about customer feedback.
+            5. History Summary: If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
             6. Raw Question Repetition: Repeat the original question to avoid forgetting information.
             7. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. You MUST keep all proper names in the query. Greetings or polite inquiries SHOULD NOT be edited. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
@@ -127,6 +130,14 @@ Rewritten query:
 """
 
 
+model_name = "Qwen/Qwen2.5-7B-Instruct"
+
+model = AutoModelForCausalLM.from_pretrained(
+    model_name, torch_dtype="auto", device_map="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+
 class ConversationalQueryRewriter:
     def __init__(self, model_path: str = "ktoan911/ConvGQR", device: str = None):
         self.model_path = model_path
@@ -135,12 +146,12 @@ class ConversationalQueryRewriter:
         else:
             self.device = torch.device(device)
 
-        self._load_model()
+        # self._load_model()
         self.max_query_length = 32
         self.max_response_length = 64
         self.max_concat_length = 512
         self.use_prefix = True
-        self.model = create_gemini_client("gemini-1.5-flash")
+        # self.model = create_gemini_client("gemini-1.5-flash")
 
     def _load_model(self):
         try:
@@ -226,9 +237,57 @@ class ConversationalQueryRewriter:
             ),
         }
 
-    def call_gemini(self, prompt):
-        response = self.model(prompt)
-        return response
+    def call_gemini(self, prompts):
+        messages_batch = [[{"role": "user", "content": p}] for p in prompts]
+
+        # Áp dụng chat template cho batch
+        texts = [
+            tokenizer.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
+            for m in messages_batch
+        ]
+
+        # Tokenize tất cả input
+        model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(
+            model.device
+        )
+
+        # Sinh output
+        generated_ids = model.generate(
+            **model_inputs, max_new_tokens=256, do_sample=True, temperature=0.7
+        )
+
+        # Loại bỏ phần input để lấy phần model sinh thêm
+        generated_ids = [
+            output_ids[len(input_ids) :]
+            for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+        ]
+
+        # Giải mã kết quả
+        responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        return responses
+
+    def rewrite_one(self, current_querys):
+        prompts = [correct_query(current_query) for current_query in current_querys]
+        p_llm = self.call_gemini(prompts)
+        res = [
+            to_dict_query(p) if to_dict_query(p) is not None else current_query
+            for p, current_query in zip(p_llm, current_querys)
+        ]
+        return res
+
+    def rewrite_many(self, conversations, current_querys):
+        prompts = [
+            build_rewrite_prompt(conversation_history, current_query)
+            for conversation_history, current_query in zip(
+                conversations, current_querys
+            )
+        ]
+        p_llm = self.call_gemini(prompts)
+        res = [
+            to_dict_query(p) if to_dict_query(p) is not None else current_query
+            for p, current_query in zip(p_llm, current_querys)
+        ]
+        return res
 
     def rewrite(
         self, conversation_history: List[str], current_query: str, use_api: bool
@@ -247,7 +306,7 @@ class ConversationalQueryRewriter:
         res = to_dict_query(p_llm)
         if res is None:
             return current_query
-        return p_llm
+        return res
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str
