@@ -58,7 +58,7 @@ def build_rewrite_prompt(history, query):
             2. Response Expansion: Give a one-sentence response to the new question.
             3. Pseudo Response: You are given a question-and-answer pair, where the answer is not clear. Your goal is to write a long version of the answer based on its given context. The generated answer should be one sentence only and less than 20 words.
             4. Topic Switch: Given a series of question-and-answer pairs, along with a new question, your task is to determine whether the new question continues the discussion on an existing topic or introduces a new topic. Please respond with either "new_topic" or "old_topic" as appropriate.
-            5. History Summary: If "old_topic", write a paragraph that summarizes the information in the context. The summary should be short with one sentence for each question answer pair. If "new_topic", skip summary.
+            5. History Summary: If "old_topic", write a paragraph that summarizes only the information in the context that is DIRECTLY RELEVANT to the new user question. Discard irrelevant topics, even if they were discussed recently. For example, if the user asks about sales data, only summarize the context about sales, and ignore context about customer feedback.
             6. Raw Question Repetition: Repeat the original question to avoid forgetting information.
             7. Finally, using all the rewritten/expanded information, convert the new question into a search engine query that can be used to retrieve relevant documents. You MUST keep all proper names in the query. Greetings or polite inquiries SHOULD NOT be edited. The output MUST be placed in a JSON dictionary as follows: {{"query": ""}}
 
@@ -247,7 +247,7 @@ class ConversationalQueryRewriter:
         res = to_dict_query(p_llm)
         if res is None:
             return current_query
-        return res
+        return p_llm
 
     def generate_summary_query(
         self, conversation_history: List[str], current_query: str
