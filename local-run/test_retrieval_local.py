@@ -16,26 +16,23 @@ collection = client.get_or_create_collection(
     embedding_function=sentence_transformer_ef,
     metadata={"hnsw:space": "cosine"},
 )
-# with open(
-#     r"/home/toannk/Desktop/Code/ConvGQR-Rewrite_context/embeddings.json", "r"
-# ) as f:
-#     data = json.load(f)
+with open(
+    r"embeddings.json", "r"
+) as f:
+    data = json.load(f)
 
 
-# collection.add(
-#     ids=[str(item["id"]) for item in data],
-#     documents=[item["text"] for item in data],
-#     embeddings=[item["embedding"] for item in data],
-# )
+collection.add(
+    ids=[str(item["id"]) for item in data],
+    documents=[item["text"] for item in data],
+    embeddings=[item["embedding"] for item in data],
+)
 
 # # # Truy vấn
 
-# results = collection.query(
-#     query_texts=["hello", "hi"], n_results=10, include=["documents", "distances"]
-# )
-# print(results["ids"])
-with open("test_data.json", "r") as f:
+with open("new_test_data.json", "r") as f:
     data = json.load(f)
+data = data[::2][:1024]
 len_data = len(data)
 len5 = 0
 len10 = 0
@@ -43,7 +40,7 @@ batch = 128
 for i in range(0, len_data, batch):
     print(f"Processing {i} to {i + batch}")
     items = data[i : i + batch]
-    ids = [str(item["id"]) for item in items]
+    ids = [str(item["match"]) for item in items]
     rewritten_questions = rewrite.rewrite_queries(
         [item["context"] for item in items], [item["question"] for item in items]
     )

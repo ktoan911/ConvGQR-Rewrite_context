@@ -4,10 +4,9 @@ from typing import Dict, List
 
 import torch
 from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
     T5ForConditionalGeneration,
     T5Tokenizer,
+    AutoTokenizer
 )
 
 # Thiết lập logging
@@ -21,7 +20,7 @@ sys.path.append("..")
 
 import json
 import re
-
+from vllm import LLM, SamplingParams
 
 def to_dict_query(long_string):
     match = re.search(r'\{"query":\s*".*?"\}', long_string)
@@ -131,11 +130,21 @@ Rewritten query:
 
 
 model_name = "Qwen/Qwen2.5-7B-Instruct"
-
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, torch_dtype="auto", device_map="auto"
-)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+sampling_params = SamplingParams(
+    temperature=1.0, 
+    top_p=1.0,
+    top_k=-1,
+    max_tokens=128,
+    stop_token_ids=[tokenizer.eos_token_id] 
+)
+llm = LLM(
+            model=model_name,
+            tensor_parallel_size=2,
+            gpu_memory_utilization=0.9,
+            enforce_eager=False,
+            dtype='auto',
+        )
 
 
 class ConversationalQueryRewriter:
@@ -238,33 +247,9 @@ class ConversationalQueryRewriter:
         }
 
     def call_gemini(self, prompts):
-        messages_batch = [[{"role": "user", "content": p}] for p in prompts]
-
-        # Áp dụng chat template cho batch
-        texts = [
-            tokenizer.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
-            for m in messages_batch
-        ]
-
-        # Tokenize tất cả input
-        model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(
-            model.device
-        )
-
-        # Sinh output
-        generated_ids = model.generate(
-            **model_inputs, max_new_tokens=256, do_sample=True, temperature=0.7
-        )
-
-        # Loại bỏ phần input để lấy phần model sinh thêm
-        generated_ids = [
-            output_ids[len(input_ids) :]
-            for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
-
-        # Giải mã kết quả
-        responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        return responses
+        outputs = llm.generate(prompts, sampling_params)
+        results = [output.outputs[0].text for output in outputs]
+        return results
 
     def rewrite_one(self, current_querys):
         prompts = [correct_query(current_query) for current_query in current_querys]

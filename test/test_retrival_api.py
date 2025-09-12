@@ -30,10 +30,11 @@ collection = client.get_or_create_collection(
 # )
 
 
-with open("test_data.json", "r") as f:
+with open("new_test_data.json", "r") as f:
     data = json.load(f)
 cont = []
 conts = []
+data = data[::2][:1024]
 for d in data:
     if len(d["context"]) == 0:
         cont.append(d)
@@ -43,15 +44,14 @@ for d in data:
 len_data = len(data)
 len5 = 0
 len10 = 0
-batch = 32
+batch = 64
 
 
 for i in range(0, len(cont), batch):
     print(f"Processing {i} to {i + batch}")
     items = cont[i : i + batch]
-    ids = [str(item["id"]) for item in items]
+    ids = [str(item["match"]) for item in items]
     rewritten_questions = rewrite.rewrite_one([item["question"] for item in items])
-    print(f"get search {i} to {i + batch}")
     results = collection.query(
         query_texts=rewritten_questions,
         n_results=10,
@@ -70,11 +70,10 @@ for i in range(0, len(cont), batch):
 for i in range(0, len(conts), batch):
     print(f"Processing {i} to {i + batch}")
     items = conts[i : i + batch]
-    ids = [str(item["id"]) for item in items]
+    ids = [str(item["match"]) for item in items]
     rewritten_questions = rewrite.rewrite_many(
         [item["context"] for item in items], [item["question"] for item in items]
     )
-    print(f"get search {i} to {i + batch}")
     results = collection.query(
         query_texts=rewritten_questions,
         n_results=10,
